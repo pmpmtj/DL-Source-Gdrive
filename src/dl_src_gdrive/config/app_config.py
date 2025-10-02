@@ -10,7 +10,7 @@ class AppConfig:
     r"C:\\Users\\me\\Downloads". Example (Linux/macOS): "/home/me/downloads".
     """
 
-    download_dir: str = r"C:\Users\pmpmt\Scripts_Cursor\251003-1-dl_src_gdrive\dl_src_gdrive\downloads"
+    download_dir: str = r"C:\Users\pmpmt\Scripts_Cursor\251003-1-dl_src_gdrive\downloads"
 
 
 # Global application config instance
