@@ -21,7 +21,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from dl_gdrive_core import GoogleDriveDownloader
+from dl_gdrive_core.dl_src_gdrive import GoogleDriveDownloader
 from logging_utils.logging_config import get_logger, set_console_level
 
 
@@ -82,9 +82,9 @@ Examples:
         if total == 0:
             logger.warning("No audio files found in Google Drive root directory")
         elif successful == total:
-            logger.info(f"✅ Successfully downloaded all {total} audio files")
+            logger.info(f"Successfully downloaded all {total} audio files")
         else:
-            logger.warning(f"⚠️  Downloaded {successful} out of {total} audio files")
+            logger.warning(f"Downloaded {successful} out of {total} audio files")
         
         # Cleanup credentials if requested
         if args.cleanup:

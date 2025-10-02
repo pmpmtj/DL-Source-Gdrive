@@ -21,9 +21,9 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload
 
-from ..config.app_config import CONFIG
-from ..logging_utils.logging_config import get_logger
-from ..utils.path_utils import resolve_path, ensure_directory, sanitize_filename, get_script_directory
+from config.app_config import CONFIG
+from logging_utils.logging_config import get_logger
+from utils.path_utils import resolve_path, ensure_directory, sanitize_filename, get_script_directory
 
 
 class GoogleDriveDownloader:
@@ -46,7 +46,7 @@ class GoogleDriveDownloader:
         # Resolve configuration paths
         self.client_secret_path = resolve_path(
             CONFIG.gdrive.client_secret_file, 
-            self.script_dir
+            self.script_dir / "config"
         )
         self.token_path = resolve_path(
             CONFIG.gdrive.token_file,

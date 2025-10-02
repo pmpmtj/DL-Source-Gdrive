@@ -15,7 +15,7 @@ class GdriveConfig:
     file_type: str = "audio"
     
     # Download directory (relative to script directory)
-    download_dir: str = "downloads"
+    download_dir: str = "."
     
     # Google Drive API settings
     client_secret_file: str = "client_secret_890800499519-d2bvsnp5bbfqieovpd4fnafacl0hkjaa.apps.googleusercontent.com.json"
@@ -27,10 +27,10 @@ class GdriveConfig:
     # ============================================================================
     # FILE FORMAT CONFIGURATION
     # ============================================================================
-    allowed_extensions: List[str] = [
+    allowed_extensions: List[str] = field(default_factory=lambda: [
         '.mp3',   # MPEG Audio Layer III
         '.m4a',   # MPEG-4 Audio
-    ]
+    ])
     
 
 @dataclass
