@@ -36,7 +36,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 
 from dl_gdrive_core.dl_src_gdrive import GoogleDriveDownloader
 from logging_utils.logging_config import get_logger, set_console_level
-from config.app_config import CONFIG
+from config.dl_gdrive_config import CONFIG
 
 
 def main() -> int:

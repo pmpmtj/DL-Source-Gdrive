@@ -57,22 +57,34 @@ A Python tool for automatically downloading audio files (MP3, M4A) from Google D
 ### Step 3: Add Credentials to the Project
 
 1. **Copy the downloaded JSON file** to the `src/dl_src_gdrive/config/` directory
-2. **Rename the file** to match the configuration in `app_config.py`:
+2. **Rename the file** to match the configuration in `dl_gdrive_config.py`:
    - The default expected name is: `client_secret_890800499519-d2bvsnp5bbfqieovpd4fnafacl0hkjaa.apps.googleusercontent.com.json`
-   - **OR** update the `client_secret_file` setting in `src/dl_src_gdrive/config/app_config.py` to match your actual filename
+   - **OR** update the `client_secret_file` setting in `src/dl_src_gdrive/config/dl_gdrive_config.py` to match your actual filename
 
 ### Step 4: Configure the Application
 
-Edit `src/dl_src_gdrive/config/app_config.py` to customize settings:
+#### Download Directory Configuration
+
+Edit `src/dl_src_gdrive/config/app_config.py` to set the download directory:
+
+```python
+@dataclass
+class AppConfig:
+    # Must be an absolute path
+    download_dir: str = r"C:\Users\YourUsername\Downloads"
+
+APP_CONFIG = AppConfig()
+```
+
+#### Google Drive Settings
+
+Edit `src/dl_src_gdrive/config/dl_gdrive_config.py` to customize Google Drive settings:
 
 ```python
 @dataclass
 class GdriveConfig:
     # Whether to delete files from Google Drive after download
-    delete_from_src: bool = True
-    
-    # Download directory (relative to script directory)
-    download_dir: str = "./downloads"
+    delete_from_src: bool = False
     
     # Folders to search (use "root" for root directory)
     search_folders: List[str] = field(default_factory=lambda: ["root"])
@@ -178,15 +190,19 @@ allowed_extensions: List[str] = field(default_factory=lambda: [
 
 ### Download Directory
 
-To change the download location:
+To change the download location, edit `src/dl_src_gdrive/config/app_config.py`:
 
 ```python
-# Relative to script directory
-download_dir: str = "./my_downloads"
+@dataclass
+class AppConfig:
+    # Must be an absolute path
+    download_dir: str = r"C:\Users\YourUsername\Downloads"  # Windows
+    # download_dir: str = "/home/yourusername/downloads"  # Linux/macOS
 
-# Or use absolute path
-download_dir: str = "/path/to/downloads"
+APP_CONFIG = AppConfig()
 ```
+
+**Important**: The download directory must be an absolute path. The application will validate this and show an error if a relative path is provided.
 
 ## 📊 Logging
 
@@ -266,7 +282,10 @@ This will show:
 
 2. **Configure** (optional):
    ```python
-   # Edit src/dl_src_gdrive/config/app_config.py
+   # Edit src/dl_src_gdrive/config/app_config.py for download directory
+   download_dir: str = r"C:\Users\YourUsername\Downloads"
+   
+   # Edit src/dl_src_gdrive/config/dl_gdrive_config.py for Google Drive settings
    search_folders = ["root", "1ABC123DEF456GHI789JKL"]
    allowed_extensions = ['.mp3', '.m4a', '.wav']
    ```

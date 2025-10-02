@@ -38,7 +38,8 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload
 
-from config.app_config import CONFIG
+from config.dl_gdrive_config import CONFIG
+from config.app_config import APP_CONFIG
 from logging_utils.logging_config import get_logger
 from utils.path_utils import resolve_path, ensure_directory, sanitize_filename, get_script_directory
 
@@ -109,19 +110,13 @@ class GoogleDriveDownloader:
                 CONFIG.gdrive.token_file,
                 self.script_dir
             )
-        # Handle relative paths properly
-        self.logger.debug(f"Config download_dir: '{CONFIG.gdrive.download_dir}'")
-        if CONFIG.gdrive.download_dir.startswith('./'):
-            # Remove './' prefix and resolve relative to script directory
-            download_path = CONFIG.gdrive.download_dir[2:]
-            self.logger.debug(f"Stripped path: '{download_path}'")
-            self.download_dir = self.script_dir / download_path
-            self.logger.debug(f"Final download_dir: '{self.download_dir}'")
-        else:
-            self.download_dir = resolve_path(
-                CONFIG.gdrive.download_dir,
-                self.script_dir
-            )
+        # Resolve absolute download directory from APP_CONFIG
+        self.logger.debug(f"App download_dir: '{APP_CONFIG.download_dir}'")
+        download_dir_str = APP_CONFIG.download_dir
+        download_path = Path(download_dir_str)
+        if not download_path.is_absolute():
+            raise ValueError(f"APP_CONFIG.download_dir must be an absolute path (got: {download_dir_str!r})")
+        self.download_dir = download_path
         
         self.logger.debug(f"Script directory: {self.script_dir}")
         self.logger.debug(f"Client secret path: {self.client_secret_path}")
