@@ -84,6 +84,11 @@ class GdriveConfig:
     allowed_extensions: List[str] = field(default_factory=lambda: [
         '.mp3',   # MPEG Audio Layer III
         '.m4a',   # MPEG-4 Audio
+        '.wav',   # Waveform Audio
+        '.ogg',   # Ogg Vorbis
+        '.flac',  # Free Lossless Audio Codec
+        '.aac',   # Advanced Audio Coding
+        '.wma',   # Windows Media Audio
     ])
     
 
