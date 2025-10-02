@@ -48,14 +48,27 @@ class GoogleDriveDownloader:
             CONFIG.gdrive.client_secret_file, 
             self.script_dir / "config"
         )
-        self.token_path = resolve_path(
-            CONFIG.gdrive.token_file,
-            self.script_dir
-        )
-        self.download_dir = resolve_path(
-            CONFIG.gdrive.download_dir,
-            self.script_dir
-        )
+        # Handle token file path - if it starts with 'config/', resolve relative to script directory
+        if CONFIG.gdrive.token_file.startswith('config/'):
+            self.token_path = self.script_dir / CONFIG.gdrive.token_file
+        else:
+            self.token_path = resolve_path(
+                CONFIG.gdrive.token_file,
+                self.script_dir
+            )
+        # Handle relative paths properly
+        self.logger.debug(f"Config download_dir: '{CONFIG.gdrive.download_dir}'")
+        if CONFIG.gdrive.download_dir.startswith('./'):
+            # Remove './' prefix and resolve relative to script directory
+            download_path = CONFIG.gdrive.download_dir[2:]
+            self.logger.debug(f"Stripped path: '{download_path}'")
+            self.download_dir = self.script_dir / download_path
+            self.logger.debug(f"Final download_dir: '{self.download_dir}'")
+        else:
+            self.download_dir = resolve_path(
+                CONFIG.gdrive.download_dir,
+                self.script_dir
+            )
         
         self.logger.debug(f"Script directory: {self.script_dir}")
         self.logger.debug(f"Client secret path: {self.client_secret_path}")
@@ -112,9 +125,9 @@ class GoogleDriveDownloader:
             self.logger.error(f"Authentication failed: {str(e)}")
             return False
     
-    def list_root_files(self) -> List[Dict]:
+    def list_files_in_folders(self) -> List[Dict]:
         """
-        List all files in the root directory of Google Drive.
+        List all files in the configured folders of Google Drive.
         
         Returns:
             List of file metadata dictionaries
@@ -123,33 +136,43 @@ class GoogleDriveDownloader:
             self.logger.error("Not authenticated. Call authenticate() first.")
             return []
         
-        self.logger.info("Listing files in Google Drive root directory...")
+        all_files = []
         
-        try:
-            # Query for files in root directory (not in any folder)
-            query = "parents in 'root' and trashed=false"
+        for folder_id in CONFIG.gdrive.search_folders:
+            folder_name = "root directory" if folder_id == "root" else f"folder {folder_id}"
+            self.logger.info(f"Listing files in {folder_name}...")
             
-            results = self.service.files().list(
-                q=query,
-                pageSize=1000,
-                fields="nextPageToken, files(id, name, mimeType, size, createdTime, modifiedTime)"
-            ).execute()
-            
-            files = results.get('files', [])
-            self.logger.info(f"Found {len(files)} files in root directory")
-            
-            # Log file details
-            for file in files:
-                self.logger.debug(f"File: {file['name']} (ID: {file['id']}, Size: {file.get('size', 'Unknown')})")
-            
-            return files
-            
-        except HttpError as e:
-            self.logger.error(f"Error listing files: {str(e)}")
-            return []
-        except Exception as e:
-            self.logger.error(f"Unexpected error listing files: {str(e)}")
-            return []
+            try:
+                # Query for files in this folder
+                if folder_id == "root":
+                    query = "parents in 'root' and trashed=false"
+                else:
+                    query = f"parents in '{folder_id}' and trashed=false"
+                
+                results = self.service.files().list(
+                    q=query,
+                    pageSize=1000,
+                    fields="nextPageToken, files(id, name, mimeType, size, createdTime, modifiedTime)"
+                ).execute()
+                
+                files = results.get('files', [])
+                self.logger.info(f"Found {len(files)} files in {folder_name}")
+                
+                # Log file details
+                for file in files:
+                    self.logger.debug(f"File: {file['name']} (ID: {file['id']}, Size: {file.get('size', 'Unknown')})")
+                
+                all_files.extend(files)
+                
+            except HttpError as e:
+                self.logger.error(f"Error listing files in {folder_name}: {str(e)}")
+                continue
+            except Exception as e:
+                self.logger.error(f"Unexpected error listing files in {folder_name}: {str(e)}")
+                continue
+        
+        self.logger.info(f"Total files found across all folders: {len(all_files)}")
+        return all_files
     
     def filter_audio_files(self, files: List[Dict]) -> List[Dict]:
         """
@@ -194,18 +217,21 @@ class GoogleDriveDownloader:
         
         # Sanitize filename for filesystem safety
         safe_filename = sanitize_filename(file_name)
-        file_path = self.download_dir / safe_filename
+        
+        # Create UUID-based subdirectory for this file inside the downloads directory
+        uuid_dir = self.download_dir / file_id
+        file_path = uuid_dir / safe_filename
         
         # Check if file already exists
         if file_path.exists():
-            self.logger.warning(f"File already exists, skipping: {safe_filename}")
+            self.logger.warning(f"File already exists, skipping: {file_id}/{safe_filename}")
             return True
         
-        self.logger.info(f"Downloading: {file_name} -> {safe_filename}")
+        self.logger.info(f"Downloading: {file_name} -> {file_id}/{safe_filename}")
         
         try:
-            # Ensure download directory exists
-            ensure_directory(self.download_dir)
+            # Ensure UUID directory exists
+            ensure_directory(uuid_dir)
             
             # Request file metadata to get size
             file_metadata = self.service.files().get(fileId=file_id).execute()
@@ -229,10 +255,20 @@ class GoogleDriveDownloader:
             
             # Verify download
             if file_path.exists() and file_path.stat().st_size > 0:
-                self.logger.info(f"Successfully downloaded: {safe_filename}")
+                self.logger.info(f"Successfully downloaded: {file_id}/{safe_filename}")
+                
+                # Delete from Google Drive if configured to do so
+                if CONFIG.gdrive.delete_from_src:
+                    self.logger.debug("delete_from_src is enabled, deleting from Google Drive...")
+                    if self.delete_file_from_gdrive(file_id, file_name):
+                        self.logger.info(f"File deleted from Google Drive after successful download: {file_name}")
+                    else:
+                        self.logger.warning(f"Failed to delete file from Google Drive: {file_name}")
+                        # Note: We don't fail the download if deletion fails
+                
                 return True
             else:
-                self.logger.error(f"Download failed or file is empty: {safe_filename}")
+                self.logger.error(f"Download failed or file is empty: {file_id}/{safe_filename}")
                 if file_path.exists():
                     file_path.unlink()  # Remove empty file
                 return False
@@ -246,23 +282,23 @@ class GoogleDriveDownloader:
     
     def download_all_audio_files(self) -> Tuple[int, int]:
         """
-        Download all audio files from Google Drive root directory.
+        Download all audio files from configured Google Drive folders.
         
         Returns:
             Tuple of (successful_downloads, total_files)
         """
-        self.logger.info("Starting download of all audio files from Google Drive root...")
+        self.logger.info("Starting download of all audio files from configured Google Drive folders...")
         
-        # List all files
-        all_files = self.list_root_files()
+        # List all files from configured folders
+        all_files = self.list_files_in_folders()
         if not all_files:
-            self.logger.warning("No files found in Google Drive root directory")
+            self.logger.warning("No files found in configured Google Drive folders")
             return 0, 0
         
         # Filter for audio files
         audio_files = self.filter_audio_files(all_files)
         if not audio_files:
-            self.logger.warning("No audio files found in Google Drive root directory")
+            self.logger.warning("No audio files found in configured Google Drive folders")
             return 0, len(all_files)
         
         # Download each file
@@ -282,6 +318,36 @@ class GoogleDriveDownloader:
         
         self.logger.info(f"Download complete: {successful_downloads}/{total_files} files downloaded successfully")
         return successful_downloads, total_files
+    
+    def delete_file_from_gdrive(self, file_id: str, file_name: str) -> bool:
+        """
+        Delete a file from Google Drive.
+        
+        Args:
+            file_id: Google Drive file ID
+            file_name: Name of the file (for logging)
+            
+        Returns:
+            True if deletion successful, False otherwise
+        """
+        if not self.service:
+            self.logger.error("Not authenticated. Call authenticate() first.")
+            return False
+        
+        self.logger.info(f"Deleting from Google Drive: {file_name} (ID: {file_id})")
+        
+        try:
+            # Delete the file
+            self.service.files().delete(fileId=file_id).execute()
+            self.logger.info(f"Successfully deleted from Google Drive: {file_name}")
+            return True
+            
+        except HttpError as e:
+            self.logger.error(f"HTTP error deleting {file_name}: {str(e)}")
+            return False
+        except Exception as e:
+            self.logger.error(f"Error deleting {file_name}: {str(e)}")
+            return False
     
     def cleanup_credentials(self) -> None:
         """Remove stored credentials file for security."""

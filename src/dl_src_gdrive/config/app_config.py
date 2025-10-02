@@ -12,16 +12,21 @@ class GdriveConfig:
     """Google Drive API and file processing configuration."""
 
     delete_from_src: bool = True
-    file_type: str = "audio"
+
     
     # Download directory (relative to script directory)
-    download_dir: str = "."
+    download_dir: str = "./downloads"
+    
+    # Folders to search for files (Google Drive folder IDs or "root" for root directory)
+    search_folders: List[str] = field(default_factory=lambda: [
+        "root"  # Search in root directory by default
+    ])
     
     # Google Drive API settings
     client_secret_file: str = "client_secret_890800499519-d2bvsnp5bbfqieovpd4fnafacl0hkjaa.apps.googleusercontent.com.json"
-    token_file: str = "token.json"
+    token_file: str = "config/token.json"
     scopes: List[str] = field(default_factory=lambda: [
-        'https://www.googleapis.com/auth/drive.readonly'
+        'https://www.googleapis.com/auth/drive'
     ])
 
     # ============================================================================
