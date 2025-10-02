@@ -1,16 +1,30 @@
 #!/usr/bin/env python3
 """
-Google Drive Audio File Downloader
+Google Drive Audio File Downloader - Main CLI Script
 
-Main CLI script for downloading MP3 and M4A files from Google Drive root directory.
-This script authenticates with Google Drive API and downloads all audio files
-matching the configured extensions.
+This module provides the command-line interface for downloading audio files (MP3, M4A)
+from Google Drive. It handles OAuth2 authentication, file discovery, and batch downloading
+with comprehensive logging and error handling.
+
+The script supports:
+- Automatic authentication with Google Drive API
+- Configurable folder search (root directory or specific folder IDs)
+- Audio file filtering by extension (.mp3, .m4a)
+- Optional file deletion from Google Drive after successful download
+- Debug logging and credential cleanup options
 
 Usage:
-    python -m dl_src_gdrive.main [--cleanup] [--debug]
+    python -m dl_src_gdrive.main [--cleanup] [--debug] [--delete-from-gdrive]
+
+Examples:
+    python -m dl_src_gdrive.main                    # Basic download
+    python -m dl_src_gdrive.main --debug            # Enable debug logging
+    python -m dl_src_gdrive.main --cleanup          # Remove credentials after download
+    python -m dl_src_gdrive.main --delete-from-gdrive  # Delete files from Google Drive
 
 Author: [Your Name]
 Date: [Current Date]
+Version: 1.0.0
 """
 
 import argparse
@@ -25,8 +39,28 @@ from logging_utils.logging_config import get_logger, set_console_level
 from config.app_config import CONFIG
 
 
-def main():
-    """Main entry point for the Google Drive downloader."""
+def main() -> int:
+    """
+    Main entry point for the Google Drive audio file downloader.
+    
+    This function handles command-line argument parsing, logger initialization,
+    Google Drive authentication, file downloading, and result reporting.
+    
+    The process follows these steps:
+    1. Parse command-line arguments (--debug, --cleanup, --delete-from-gdrive)
+    2. Initialize logger with appropriate level
+    3. Authenticate with Google Drive API
+    4. Download all audio files from configured folders
+    5. Report download results
+    6. Optionally clean up credentials
+    
+    Returns:
+        int: Exit code (0 for success, 1 for failure)
+        
+    Raises:
+        KeyboardInterrupt: If user interrupts the process (Ctrl+C)
+        Exception: For any unexpected errors during execution
+    """
     parser = argparse.ArgumentParser(
         description="Download MP3 and M4A files from Google Drive root directory",
         formatter_class=argparse.RawDescriptionHelpFormatter,

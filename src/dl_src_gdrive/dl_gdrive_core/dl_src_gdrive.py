@@ -1,12 +1,31 @@
 """
 Google Drive Downloader Core Module
 
-This module provides the core functionality for downloading files from Google Drive.
-It handles authentication, file listing, and downloading with proper error handling
-and logging.
+This module provides the core functionality for downloading audio files from Google Drive.
+It implements a comprehensive GoogleDriveDownloader class that handles OAuth2 authentication,
+file discovery, filtering, and downloading with robust error handling and logging.
+
+Key Features:
+- OAuth2 authentication with automatic token refresh
+- Configurable folder search (root directory or specific folder IDs)
+- Audio file filtering by extension (.mp3, .m4a)
+- UUID-based file organization in download directory
+- Optional file deletion from Google Drive after successful download
+- Comprehensive logging and error handling
+- Cross-platform path handling
+
+The GoogleDriveDownloader class provides these main methods:
+- authenticate(): Handle OAuth2 authentication flow
+- list_files_in_folders(): Discover files in configured folders
+- filter_audio_files(): Filter files by audio extensions
+- download_file(): Download individual files with progress tracking
+- download_all_audio_files(): Batch download all audio files
+- delete_file_from_gdrive(): Remove files from Google Drive
+- cleanup_credentials(): Remove stored credentials for security
 
 Author: [Your Name]
 Date: [Current Date]
+Version: 1.0.0
 """
 
 from pathlib import Path
@@ -26,14 +45,50 @@ from utils.path_utils import resolve_path, ensure_directory, sanitize_filename, 
 
 class GoogleDriveDownloader:
     """
-    Google Drive file downloader with authentication and file management.
+    Google Drive audio file downloader with comprehensive file management.
     
-    This class handles OAuth2 authentication with Google Drive API and provides
-    methods to list and download files from the root directory of Google Drive.
+    This class provides a complete solution for downloading audio files from Google Drive
+    with OAuth2 authentication, configurable folder search, and robust error handling.
+    
+    The downloader supports:
+    - OAuth2 authentication with automatic token refresh
+    - Search in root directory or specific Google Drive folders
+    - Audio file filtering by extension (.mp3, .m4a)
+    - UUID-based file organization to prevent conflicts
+    - Optional file deletion from Google Drive after successful download
+    - Comprehensive logging and progress tracking
+    - Cross-platform path handling
+    
+    Attributes:
+        logger: Configured logger instance for this downloader
+        service: Google Drive API service instance (set after authentication)
+        credentials: OAuth2 credentials (set after authentication)
+        script_dir: Path to the script directory for relative path resolution
+        client_secret_path: Path to the OAuth2 client secret file
+        token_path: Path to the stored OAuth2 token file
+        download_dir: Directory where files will be downloaded
+        
+    Example:
+        >>> downloader = GoogleDriveDownloader()
+        >>> if downloader.authenticate():
+        ...     successful, total = downloader.download_all_audio_files()
+        ...     print(f"Downloaded {successful}/{total} files")
     """
     
     def __init__(self):
-        """Initialize the Google Drive downloader."""
+        """
+        Initialize the Google Drive downloader with configuration and paths.
+        
+        This constructor sets up the downloader by:
+        - Initializing the logger
+        - Resolving script directory for relative path handling
+        - Setting up paths for client secret, token, and download directories
+        - Configuring Google Drive API settings from app configuration
+        
+        The downloader will be ready for authentication after initialization.
+        All paths are resolved relative to the script directory to ensure
+        cross-platform compatibility.
+        """
         self.logger = get_logger('gdrive_downloader')
         self.service = None
         self.credentials = None
@@ -75,10 +130,26 @@ class GoogleDriveDownloader:
     
     def authenticate(self) -> bool:
         """
-        Authenticate with Google Drive API using OAuth2.
+        Authenticate with Google Drive API using OAuth2 flow.
+        
+        This method handles the complete OAuth2 authentication process:
+        1. Checks for existing valid credentials
+        2. Refreshes expired credentials if refresh token is available
+        3. Initiates OAuth2 flow if no valid credentials exist
+        4. Saves credentials for future use
+        5. Builds the Google Drive API service
+        
+        The authentication process supports:
+        - Automatic credential refresh for expired tokens
+        - Local server OAuth2 flow for user authorization
+        - Persistent credential storage for subsequent runs
         
         Returns:
-            True if authentication successful, False otherwise
+            bool: True if authentication successful, False otherwise
+            
+        Raises:
+            Exception: If authentication fails due to network issues,
+                     invalid credentials, or API errors
         """
         self.logger.info("Starting Google Drive authentication...")
         
@@ -125,10 +196,30 @@ class GoogleDriveDownloader:
     
     def list_files_in_folders(self) -> List[Dict]:
         """
-        List all files in the configured folders of Google Drive.
+        List all files in the configured Google Drive folders.
+        
+        This method searches through all configured folders (root directory or
+        specific folder IDs) and retrieves file metadata including ID, name,
+        MIME type, size, and timestamps.
+        
+        The search process:
+        1. Iterates through each configured folder ID
+        2. Queries Google Drive API for files in each folder
+        3. Retrieves file metadata (id, name, mimeType, size, createdTime, modifiedTime)
+        4. Logs detailed information about found files
+        5. Handles API errors gracefully and continues with other folders
         
         Returns:
-            List of file metadata dictionaries
+            List[Dict]: List of file metadata dictionaries, each containing:
+                - id: Google Drive file ID
+                - name: File name
+                - mimeType: MIME type of the file
+                - size: File size in bytes (if available)
+                - createdTime: File creation timestamp
+                - modifiedTime: File modification timestamp
+                
+        Note:
+            Requires authentication before calling. Returns empty list if not authenticated.
         """
         if not self.service:
             self.logger.error("Not authenticated. Call authenticate() first.")
@@ -176,11 +267,29 @@ class GoogleDriveDownloader:
         """
         Filter files to only include audio files with allowed extensions.
         
+        This method processes a list of file metadata dictionaries and filters
+        them to include only files with audio extensions configured in the
+        application settings (.mp3, .m4a by default).
+        
+        The filtering process:
+        1. Extracts file extension from each file name
+        2. Converts extension to lowercase for case-insensitive matching
+        3. Checks if extension is in the allowed extensions list
+        4. Logs detailed information about each file's filtering decision
+        5. Returns only files that match the audio extension criteria
+        
         Args:
-            files: List of file metadata dictionaries
-            
+            files (List[Dict]): List of file metadata dictionaries from
+                               list_files_in_folders() or similar source
+                               
         Returns:
-            Filtered list of audio files
+            List[Dict]: Filtered list containing only audio files with
+                       allowed extensions. Each dictionary contains the same
+                       metadata as the input files.
+                       
+        Note:
+            The allowed extensions are configured in CONFIG.gdrive.allowed_extensions
+            and default to ['.mp3', '.m4a'].
         """
         self.logger.info(f"Filtering files for audio extensions: {CONFIG.gdrive.allowed_extensions}")
         
@@ -200,14 +309,33 @@ class GoogleDriveDownloader:
     
     def download_file(self, file_id: str, file_name: str) -> bool:
         """
-        Download a single file from Google Drive.
+        Download a single file from Google Drive with progress tracking.
+        
+        This method downloads a file from Google Drive to the local filesystem
+        with comprehensive error handling, progress tracking, and optional
+        post-download cleanup.
+        
+        The download process:
+        1. Sanitizes filename for filesystem safety
+        2. Creates UUID-based subdirectory to prevent conflicts
+        3. Checks if file already exists (skips if found)
+        4. Downloads file with progress tracking
+        5. Verifies download integrity
+        6. Optionally deletes file from Google Drive if configured
         
         Args:
-            file_id: Google Drive file ID
-            file_name: Name of the file to save
+            file_id (str): Google Drive file ID for the file to download
+            file_name (str): Original name of the file (will be sanitized)
             
         Returns:
-            True if download successful, False otherwise
+            bool: True if download successful, False otherwise
+            
+        Note:
+            - Requires authentication before calling
+            - Files are organized in UUID-based subdirectories
+            - Filenames are sanitized to prevent filesystem issues
+            - Existing files are skipped (not re-downloaded)
+            - File deletion from Google Drive is optional and configurable
         """
         if not self.service:
             self.logger.error("Not authenticated. Call authenticate() first.")
@@ -282,8 +410,27 @@ class GoogleDriveDownloader:
         """
         Download all audio files from configured Google Drive folders.
         
+        This is the main method for batch downloading audio files. It orchestrates
+        the complete process of discovering, filtering, and downloading audio files
+        from all configured Google Drive folders.
+        
+        The process follows these steps:
+        1. Lists all files in configured folders
+        2. Filters files to include only audio files (.mp3, .m4a)
+        3. Downloads each audio file individually
+        4. Tracks successful and failed downloads
+        5. Reports comprehensive results
+        
         Returns:
-            Tuple of (successful_downloads, total_files)
+            Tuple[int, int]: A tuple containing:
+                - successful_downloads: Number of files successfully downloaded
+                - total_files: Total number of audio files found
+                
+        Note:
+            - Returns (0, 0) if no files are found in any configured folders
+            - Returns (0, 0) if no audio files are found among the files
+            - Requires authentication before calling
+            - Each file is downloaded to its own UUID-based subdirectory
         """
         self.logger.info("Starting download of all audio files from configured Google Drive folders...")
         
@@ -319,14 +466,24 @@ class GoogleDriveDownloader:
     
     def delete_file_from_gdrive(self, file_id: str, file_name: str) -> bool:
         """
-        Delete a file from Google Drive.
+        Delete a file from Google Drive after successful download.
+        
+        This method removes a file from Google Drive using the Google Drive API.
+        It's typically called after a successful download when the application
+        is configured to delete source files.
         
         Args:
-            file_id: Google Drive file ID
-            file_name: Name of the file (for logging)
+            file_id (str): Google Drive file ID of the file to delete
+            file_name (str): Name of the file (used for logging purposes only)
             
         Returns:
-            True if deletion successful, False otherwise
+            bool: True if deletion successful, False otherwise
+            
+        Note:
+            - Requires authentication before calling
+            - This is a permanent operation - deleted files cannot be recovered
+            - Used in conjunction with CONFIG.gdrive.delete_from_src setting
+            - File deletion failures do not affect download success status
         """
         if not self.service:
             self.logger.error("Not authenticated. Call authenticate() first.")
@@ -348,7 +505,25 @@ class GoogleDriveDownloader:
             return False
     
     def cleanup_credentials(self) -> None:
-        """Remove stored credentials file for security."""
+        """
+        Remove stored credentials file for security purposes.
+        
+        This method permanently deletes the stored OAuth2 token file from the
+        local filesystem. This is useful for security-conscious environments
+        where credentials should not persist after the application completes.
+        
+        The cleanup process:
+        1. Checks if the token file exists
+        2. Logs the cleanup operation
+        3. Permanently removes the token file
+        4. Confirms successful cleanup
+        
+        Note:
+            - This is a permanent operation - credentials cannot be recovered
+            - User will need to re-authenticate on next run
+            - Typically called with --cleanup command-line flag
+            - Safe to call multiple times (no error if file doesn't exist)
+        """
         if self.token_path.exists():
             self.logger.debug("Cleaning up credentials file...")
             self.token_path.unlink()

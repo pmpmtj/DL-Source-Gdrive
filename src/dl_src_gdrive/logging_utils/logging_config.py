@@ -1,11 +1,33 @@
 """
 Logging Configuration Module
 
-This module provides centralized logging configuration for the Google Drive downloader.
-It supports configurable log levels, file outputs, and console outputs.
+This module provides centralized logging configuration for the Google Drive
+audio file downloader. It supports configurable log levels, file outputs,
+and console outputs with comprehensive logging management.
 
-The configuration allows each module/function to have its own logger with 
-independent settings.
+Key Features:
+- Centralized logging configuration management
+- Per-module logger configuration
+- Configurable log levels (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+- Separate console and file output control
+- Automatic log directory creation
+- Consistent log formatting across all modules
+- Dynamic log level adjustment
+
+Configuration Structure:
+- LOGGING_CONFIG: Dictionary defining logger configurations
+- DEFAULT_LOG_DIR: Default directory for log files
+- DEFAULT_LOG_FORMAT: Standard log message format
+- DEFAULT_DATE_FORMAT: Standard timestamp format
+
+The module provides these main functions:
+- get_logger(): Create or retrieve configured logger instances
+- set_console_level(): Dynamically adjust console log levels
+- Centralized configuration for consistent logging across the application
+
+Author: [Your Name]
+Date: [Current Date]
+Version: 1.0.0
 """
 
 import logging
@@ -42,25 +64,41 @@ def get_logger(
     file_level: Optional[str] = None,
 ) -> logging.Logger:
     """
-    Get or create a configured logger instance.
+    Get or create a configured logger instance with console and file handlers.
     
     This function creates a logger with both console and file handlers based on
     the configuration defined in LOGGING_CONFIG. If the logger already exists,
-    it returns the existing instance.
+    it returns the existing instance to prevent duplicate handlers.
+    
+    The logger configuration process:
+    1. Retrieves configuration for the specified logger name
+    2. Sets up console handler with configurable log level
+    3. Sets up file handler with configurable log level and directory
+    4. Applies consistent formatting to all handlers
+    5. Prevents duplicate handler creation
     
     Args:
-        logger_name: Name of the logger (must match a key in LOGGING_CONFIG)
-        log_dir: Optional directory for log files (defaults to DEFAULT_LOG_DIR in CWD)
-        console_level: Optional override for console log level ('DEBUG', 'INFO', etc.)
-        file_level: Optional override for file log level
+        logger_name (str): Name of the logger (must match a key in LOGGING_CONFIG)
+        log_dir (Optional[Path]): Directory for log files. Defaults to DEFAULT_LOG_DIR
+                                 in current working directory if None
+        console_level (Optional[str]): Override for console log level.
+                                     Valid values: 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'
+        file_level (Optional[str]): Override for file log level.
+                                  Valid values: 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'
         
     Returns:
-        Configured logger instance
+        logging.Logger: Configured logger instance with console and file handlers
         
     Example:
         >>> logger = get_logger('gdrive_downloader', console_level='DEBUG')
         >>> logger.info('Starting download...')
         >>> logger.debug('Detailed debug information')
+        
+    Note:
+        - Logger names should match keys in LOGGING_CONFIG dictionary
+        - Existing loggers are returned without modification
+        - Log directory is created automatically if it doesn't exist
+        - Console and file levels can be set independently
     """
     # Get configuration for this logger
     config = LOGGING_CONFIG.get(logger_name, {})
@@ -119,16 +157,31 @@ def set_console_level(logger: logging.Logger, level: str) -> None:
     """
     Update the console handler's log level for an existing logger.
     
-    This is useful for dynamically changing log levels based on CLI flags
-    (e.g., enabling DEBUG mode with --debug flag).
+    This function dynamically changes the console log level for an existing
+    logger instance. It's particularly useful for implementing CLI flags
+    like --debug that need to adjust logging verbosity at runtime.
+    
+    The update process:
+    1. Converts the level string to a logging level constant
+    2. Searches through all handlers for console handlers
+    3. Updates the level of the first console handler found
+    4. Leaves file handlers unchanged
     
     Args:
-        logger: Logger instance to update
-        level: New log level ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL')
+        logger (logging.Logger): Logger instance to update
+        level (str): New log level for console output.
+                    Valid values: 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'
         
     Example:
         >>> logger = get_logger('gdrive_downloader')
         >>> set_console_level(logger, 'DEBUG')  # Enable debug output
+        >>> logger.debug('This will now appear in console')
+        
+    Note:
+        - Only affects console handlers, file handlers remain unchanged
+        - Level names are case-insensitive
+        - If no console handler is found, no error is raised
+        - This is typically used with command-line --debug flags
     """
     log_level = getattr(logging, level.upper())
     for handler in logger.handlers:
