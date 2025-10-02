@@ -137,15 +137,4 @@ def set_console_level(logger: logging.Logger, level: str) -> None:
             break
 
 
-def disable_file_logging(logger: logging.Logger) -> None:
-    """
-    Disable file logging for a logger (keeps console logging only).
-    
-    Args:
-        logger: Logger instance to modify
-    """
-    for handler in logger.handlers[:]:  # Use slice to iterate over copy
-        if isinstance(handler, logging.FileHandler):
-            handler.close()
-            logger.removeHandler(handler)
 

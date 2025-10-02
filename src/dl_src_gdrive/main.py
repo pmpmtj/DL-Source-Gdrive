@@ -17,9 +17,8 @@ import argparse
 import sys
 from pathlib import Path
 
-# Add the src directory to the path for imports
+# Get script directory for proper imports
 SCRIPT_DIR = Path(__file__).resolve().parent
-sys.path.insert(0, str(SCRIPT_DIR))
 
 from dl_gdrive_core.dl_src_gdrive import GoogleDriveDownloader
 from logging_utils.logging_config import get_logger, set_console_level

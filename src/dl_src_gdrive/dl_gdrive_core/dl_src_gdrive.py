@@ -9,10 +9,8 @@ Author: [Your Name]
 Date: [Current Date]
 """
 
-import json
-import os
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Tuple
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -299,7 +297,7 @@ class GoogleDriveDownloader:
         audio_files = self.filter_audio_files(all_files)
         if not audio_files:
             self.logger.warning("No audio files found in configured Google Drive folders")
-            return 0, len(all_files)
+            return 0, 0
         
         # Download each file
         successful_downloads = 0
