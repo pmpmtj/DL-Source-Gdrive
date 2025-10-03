@@ -7,7 +7,7 @@ A Python tool for automatically downloading audio files (MP3, M4A) from Google D
 - **OAuth2 Authentication** - Secure Google Drive API access with automatic token refresh
 - **Configurable Search** - Search in root directory or specific Google Drive folders
 - **Audio File Filtering** - Automatically filters and downloads only audio files (.mp3, .m4a)
-- **UUID-based Organization** - Downloads files to unique subdirectories to prevent conflicts
+- **Chronological Organization** - Downloads files to date-prefixed subdirectories to maintain chronological order for diary entries
 - **Optional Source Cleanup** - Delete files from Google Drive after successful download
 - **Comprehensive Logging** - Detailed logging with configurable levels
 - **Cross-platform Support** - Works on Windows, macOS, and Linux
@@ -144,16 +144,18 @@ python -m dl_src_gdrive.main --debug --cleanup --delete-from-gdrive
 
 ## 📁 File Organization
 
-Downloaded files are organized as follows:
+Downloaded files are organized chronologically as follows:
 
 ```
 downloads/
-├── 1xmnb8iq-uGbWa9bdJTd-vzSY19HsIDyR/  # Google Drive file ID
+├── 2024-10-02_143052_1xmnb8iq-uGbWa9bdJTd-vzSY19HsIDyR/  # Date + Google Drive file ID
 │   └── Rua Diogo Domingos Alves.m4a
-├── 2abc123def456ghi789jkl012mno345pqr/
+├── 2024-10-02_150230_2abc123def456ghi789jkl012mno345pqr/
 │   └── Another Audio File.mp3
 └── ...
 ```
+
+**Chronological Ordering**: Files are organized by their Google Drive creation date in `YYYY-MM-DD_HHMMSS` format, ensuring diary entries maintain proper chronological order when browsing the file system.
 
 ## ⚙️ Configuration Options
 

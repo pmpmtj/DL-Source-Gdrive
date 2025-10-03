@@ -311,15 +311,17 @@ class GoogleDriveDownloader:
         
         This method downloads a file from Google Drive to the local filesystem
         with comprehensive error handling, progress tracking, and optional
-        post-download cleanup.
+        post-download cleanup. Files are organized in date-prefixed directories
+        to maintain chronological order for diary entries.
         
         The download process:
-        1. Sanitizes filename for filesystem safety
-        2. Creates UUID-based subdirectory to prevent conflicts
-        3. Checks if file already exists (skips if found)
-        4. Downloads file with progress tracking
-        5. Verifies download integrity
-        6. Optionally deletes file from Google Drive if configured
+        1. Retrieves file metadata to get creation date
+        2. Sanitizes filename for filesystem safety
+        3. Creates date-prefixed subdirectory to maintain chronological order
+        4. Checks if file already exists (skips if found)
+        5. Downloads file with progress tracking
+        6. Verifies download integrity
+        7. Optionally deletes file from Google Drive if configured
         
         Args:
             file_id (str): Google Drive file ID for the file to download
@@ -330,7 +332,7 @@ class GoogleDriveDownloader:
             
         Note:
             - Requires authentication before calling
-            - Files are organized in UUID-based subdirectories
+            - Files are organized in date-prefixed subdirectories for chronological ordering
             - Filenames are sanitized to prevent filesystem issues
             - Existing files are skipped (not re-downloaded)
             - File deletion from Google Drive is optional and configurable
@@ -342,23 +344,45 @@ class GoogleDriveDownloader:
         # Sanitize filename for filesystem safety
         safe_filename = sanitize_filename(file_name)
         
-        # Create UUID-based subdirectory for this file inside the downloads directory
-        uuid_dir = self.download_dir / file_id
-        file_path = uuid_dir / safe_filename
+        # Get file metadata to extract creation date for chronological ordering
+        try:
+            file_metadata = self.service.files().get(fileId=file_id).execute()
+            created_time = file_metadata.get('createdTime', '')
+            
+            if created_time:
+                # Parse ISO 8601 timestamp and format as YYYY-MM-DD_HHMMSS
+                from datetime import datetime
+                dt = datetime.fromisoformat(created_time.replace('Z', '+00:00'))
+                formatted_date = dt.strftime('%Y-%m-%d_%H%M%S')
+                self.logger.debug(f"File creation date: {created_time} -> {formatted_date}")
+            else:
+                # Fallback to current time if creation date not available
+                from datetime import datetime
+                formatted_date = datetime.now().strftime('%Y-%m-%d_%H%M%S')
+                self.logger.warning(f"No creation date found for {file_name}, using current time: {formatted_date}")
+            
+        except Exception as e:
+            # Fallback to current time if metadata retrieval fails
+            from datetime import datetime
+            formatted_date = datetime.now().strftime('%Y-%m-%d_%H%M%S')
+            self.logger.warning(f"Failed to get creation date for {file_name}: {e}, using current time: {formatted_date}")
+        
+        # Create date-prefixed subdirectory for chronological ordering
+        date_prefixed_dir = self.download_dir / f"{formatted_date}_{file_id}"
+        file_path = date_prefixed_dir / safe_filename
         
         # Check if file already exists
         if file_path.exists():
-            self.logger.warning(f"File already exists, skipping: {file_id}/{safe_filename}")
+            self.logger.warning(f"File already exists, skipping: {formatted_date}_{file_id}/{safe_filename}")
             return True
         
-        self.logger.info(f"Downloading: {file_name} -> {file_id}/{safe_filename}")
+        self.logger.info(f"Downloading: {file_name} -> {formatted_date}_{file_id}/{safe_filename}")
         
         try:
-            # Ensure UUID directory exists
-            ensure_directory(uuid_dir)
+            # Ensure date-prefixed directory exists
+            ensure_directory(date_prefixed_dir)
             
-            # Request file metadata to get size
-            file_metadata = self.service.files().get(fileId=file_id).execute()
+            # Get file size from metadata (already retrieved above)
             file_size = int(file_metadata.get('size', 0))
             
             if file_size > 0:
@@ -379,7 +403,7 @@ class GoogleDriveDownloader:
             
             # Verify download
             if file_path.exists() and file_path.stat().st_size > 0:
-                self.logger.info(f"Successfully downloaded: {file_id}/{safe_filename}")
+                self.logger.info(f"Successfully downloaded: {formatted_date}_{file_id}/{safe_filename}")
                 
                 # Delete from Google Drive if configured to do so
                 if CONFIG.gdrive.delete_from_src:
@@ -392,7 +416,7 @@ class GoogleDriveDownloader:
                 
                 return True
             else:
-                self.logger.error(f"Download failed or file is empty: {file_id}/{safe_filename}")
+                self.logger.error(f"Download failed or file is empty: {formatted_date}_{file_id}/{safe_filename}")
                 if file_path.exists():
                     file_path.unlink()  # Remove empty file
                 return False
