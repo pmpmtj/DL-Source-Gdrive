@@ -65,7 +65,7 @@ A Python tool for automatically downloading audio files (MP3, M4A) from Google D
 
 #### Download Directory Configuration
 
-Edit `src/dl_src_gdrive/config/app_config.py` to set the download directory:
+Edit `app_config/app_config.py` to set the download directory:
 
 ```python
 @dataclass
@@ -190,7 +190,7 @@ allowed_extensions: List[str] = field(default_factory=lambda: [
 
 ### Download Directory
 
-To change the download location, edit `src/dl_src_gdrive/config/app_config.py`:
+To change the download location, edit `app_config/app_config.py`:
 
 ```python
 @dataclass
@@ -282,7 +282,7 @@ This will show:
 
 2. **Configure** (optional):
    ```python
-   # Edit src/dl_src_gdrive/config/app_config.py for download directory
+   # Edit app_config/app_config.py for download directory
    download_dir: str = r"C:\Users\YourUsername\Downloads"
    
    # Edit src/dl_src_gdrive/config/dl_gdrive_config.py for Google Drive settings

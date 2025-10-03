@@ -39,7 +39,7 @@ from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload
 
 from config.dl_gdrive_config import CONFIG
-from config.app_config import APP_CONFIG
+from config.app_config_loader import load_app_config
 from logging_utils.logging_config import get_logger
 from utils.path_utils import resolve_path, ensure_directory, sanitize_filename, get_script_directory
 
@@ -110,6 +110,9 @@ class GoogleDriveDownloader:
                 CONFIG.gdrive.token_file,
                 self.script_dir
             )
+        # Load app configuration dynamically
+        APP_CONFIG = load_app_config()
+        
         # Resolve absolute download directory from APP_CONFIG
         self.logger.debug(f"App download_dir: '{APP_CONFIG.download_dir}'")
         download_dir_str = APP_CONFIG.download_dir

@@ -1,19 +1,28 @@
-from dataclasses import dataclass
+"""
+App Config Stub Module
 
+This module has been moved to the project root for better organization and
+to allow external tools to share the same configuration structure.
 
-@dataclass
-class AppConfig:
-    """
-    Application-level configuration.
+The app configuration is now located at: ./app_config/app_config.py
 
-    download_dir must be an absolute path. Example (Windows):
-    r"C:\\Users\\me\\Downloads". Example (Linux/macOS): "/home/me/downloads".
-    """
+To use the configuration, import the loader:
+    from config.app_config_loader import load_app_config
+    APP_CONFIG = load_app_config()
 
-    download_dir: str = r"C:\Users\pmpmt\Scripts_Cursor\251003-1-dl_src_gdrive\downloads"
+This stub file prevents accidental imports and provides clear guidance
+on the new location and usage pattern.
+"""
 
-
-# Global application config instance
-APP_CONFIG = AppConfig()
-
-
+raise ImportError(
+    "The app_config module has been moved to the project root.\n"
+    "\n"
+    "New location: ./app_config/app_config.py\n"
+    "\n"
+    "To use the configuration, import the loader instead:\n"
+    "    from config.app_config_loader import load_app_config\n"
+    "    APP_CONFIG = load_app_config()\n"
+    "\n"
+    "This allows external tools to share the same configuration structure\n"
+    "by accessing ./app_config/app_config.py at the project root."
+)
