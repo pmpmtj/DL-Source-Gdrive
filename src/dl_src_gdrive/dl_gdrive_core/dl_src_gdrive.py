@@ -38,10 +38,10 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload
 
-from config.dl_gdrive_config import CONFIG
-from config.app_config_loader import load_app_config
-from logging_utils.logging_config import get_logger
-from utils.path_utils import resolve_path, ensure_directory, sanitize_filename, get_script_directory
+from dl_src_gdrive.config.dl_gdrive_config import CONFIG
+from transcribe_log_db.config.app_config_loader import load_app_config
+from transcribe_log_db.logging_utils.logging_config import get_logger
+from transcribe_log_db.utils.path_utils import resolve_path, ensure_directory, sanitize_filename, get_script_directory
 
 
 class GoogleDriveDownloader:
@@ -97,18 +97,23 @@ class GoogleDriveDownloader:
         # Get script directory for path resolution
         self.script_dir = get_script_directory()
         
+        # For Google Drive downloader, we need to go up to the src directory
+        # since the config files are in dl_src_gdrive/config, not transcribe_log_db/config
+        src_dir = self.script_dir.parent  # Go up from transcribe_log_db to src
+        dl_src_gdrive_dir = src_dir / "dl_src_gdrive"
+        
         # Resolve configuration paths
         self.client_secret_path = resolve_path(
             CONFIG.gdrive.client_secret_file, 
-            self.script_dir / "config"
+            dl_src_gdrive_dir / "config"
         )
-        # Handle token file path - if it starts with 'config/', resolve relative to script directory
+        # Handle token file path - if it starts with 'config/', resolve relative to dl_src_gdrive directory
         if CONFIG.gdrive.token_file.startswith('config/'):
-            self.token_path = self.script_dir / CONFIG.gdrive.token_file
+            self.token_path = dl_src_gdrive_dir / CONFIG.gdrive.token_file
         else:
             self.token_path = resolve_path(
                 CONFIG.gdrive.token_file,
-                self.script_dir
+                dl_src_gdrive_dir
             )
         # Load app configuration dynamically
         APP_CONFIG = load_app_config()
@@ -239,6 +244,7 @@ class GoogleDriveDownloader:
                 results = self.service.files().list(
                     q=query,
                     pageSize=1000,
+                    orderBy="createdTime",  # Order files by creation time (ascending)
                     fields="nextPageToken, files(id, name, mimeType, size, createdTime, modifiedTime)"
                 ).execute()
                 
@@ -305,34 +311,34 @@ class GoogleDriveDownloader:
         self.logger.info(f"Found {len(audio_files)} audio files to download")
         return audio_files
     
-    def download_file(self, file_id: str, file_name: str) -> bool:
+    def download_file(self, file_id: str, file_name: str, sequence_number: int = None) -> bool:
         """
         Download a single file from Google Drive with progress tracking.
         
         This method downloads a file from Google Drive to the local filesystem
         with comprehensive error handling, progress tracking, and optional
-        post-download cleanup. Files are organized in date-prefixed directories
+        post-download cleanup. Files are organized in sequence-numbered directories
         to maintain chronological order for diary entries.
         
         The download process:
-        1. Retrieves file metadata to get creation date
-        2. Sanitizes filename for filesystem safety
-        3. Creates date-prefixed subdirectory to maintain chronological order
-        4. Checks if file already exists (skips if found)
-        5. Downloads file with progress tracking
-        6. Verifies download integrity
-        7. Optionally deletes file from Google Drive if configured
+        1. Sanitizes filename for filesystem safety
+        2. Creates sequence-numbered subdirectory to maintain chronological order
+        3. Checks if file already exists (skips if found)
+        4. Downloads file with progress tracking
+        5. Verifies download integrity
+        6. Optionally deletes file from Google Drive if configured
         
         Args:
             file_id (str): Google Drive file ID for the file to download
             file_name (str): Original name of the file (will be sanitized)
+            sequence_number (int, optional): Sequence number for chronological ordering
             
         Returns:
             bool: True if download successful, False otherwise
             
         Note:
             - Requires authentication before calling
-            - Files are organized in date-prefixed subdirectories for chronological ordering
+            - Files are organized in sequence-numbered subdirectories for chronological ordering
             - Filenames are sanitized to prevent filesystem issues
             - Existing files are skipped (not re-downloaded)
             - File deletion from Google Drive is optional and configurable
@@ -344,49 +350,28 @@ class GoogleDriveDownloader:
         # Sanitize filename for filesystem safety
         safe_filename = sanitize_filename(file_name)
         
-        # Get file metadata to extract creation date for chronological ordering
-        try:
-            file_metadata = self.service.files().get(fileId=file_id).execute()
-            created_time = file_metadata.get('createdTime', '')
-            
-            if created_time:
-                # Parse ISO 8601 timestamp and format as YYYY-MM-DD_HHMMSS
-                from datetime import datetime
-                dt = datetime.fromisoformat(created_time.replace('Z', '+00:00'))
-                formatted_date = dt.strftime('%Y-%m-%d_%H%M%S')
-                self.logger.debug(f"File creation date: {created_time} -> {formatted_date}")
-            else:
-                # Fallback to current time if creation date not available
-                from datetime import datetime
-                formatted_date = datetime.now().strftime('%Y-%m-%d_%H%M%S')
-                self.logger.warning(f"No creation date found for {file_name}, using current time: {formatted_date}")
-            
-        except Exception as e:
-            # Fallback to current time if metadata retrieval fails
-            from datetime import datetime
-            formatted_date = datetime.now().strftime('%Y-%m-%d_%H%M%S')
-            self.logger.warning(f"Failed to get creation date for {file_name}: {e}, using current time: {formatted_date}")
+        # Use sequence number for chronological ordering (files are already ordered by Google Drive API)
+        if sequence_number is not None:
+            # Create sequence-numbered subdirectory for chronological ordering
+            sequence_dir = self.download_dir / f"{sequence_number:03d}_{file_id}"
+            self.logger.info(f"Using sequence number {sequence_number} for chronological ordering: {file_name}")
+        else:
+            # Fallback to file ID only if no sequence number provided
+            sequence_dir = self.download_dir / file_id
+            self.logger.warning(f"No sequence number provided for {file_name}, using file ID only")
         
-        # Create date-prefixed subdirectory for chronological ordering
-        date_prefixed_dir = self.download_dir / f"{formatted_date}_{file_id}"
-        file_path = date_prefixed_dir / safe_filename
+        file_path = sequence_dir / safe_filename
         
         # Check if file already exists
         if file_path.exists():
-            self.logger.warning(f"File already exists, skipping: {formatted_date}_{file_id}/{safe_filename}")
+            self.logger.warning(f"File already exists, skipping: {sequence_dir.name}/{safe_filename}")
             return True
         
-        self.logger.info(f"Downloading: {file_name} -> {formatted_date}_{file_id}/{safe_filename}")
+        self.logger.info(f"Downloading: {file_name} -> {sequence_dir.name}/{safe_filename}")
         
         try:
-            # Ensure date-prefixed directory exists
-            ensure_directory(date_prefixed_dir)
-            
-            # Get file size from metadata (already retrieved above)
-            file_size = int(file_metadata.get('size', 0))
-            
-            if file_size > 0:
-                self.logger.debug(f"File size: {file_size} bytes")
+            # Ensure sequence directory exists
+            ensure_directory(sequence_dir)
             
             # Download the file
             request = self.service.files().get_media(fileId=file_id)
@@ -403,7 +388,7 @@ class GoogleDriveDownloader:
             
             # Verify download
             if file_path.exists() and file_path.stat().st_size > 0:
-                self.logger.info(f"Successfully downloaded: {formatted_date}_{file_id}/{safe_filename}")
+                self.logger.info(f"Successfully downloaded: {sequence_dir.name}/{safe_filename}")
                 
                 # Delete from Google Drive if configured to do so
                 if CONFIG.gdrive.delete_from_src:
@@ -416,7 +401,7 @@ class GoogleDriveDownloader:
                 
                 return True
             else:
-                self.logger.error(f"Download failed or file is empty: {formatted_date}_{file_id}/{safe_filename}")
+                self.logger.error(f"Download failed or file is empty: {sequence_dir.name}/{safe_filename}")
                 if file_path.exists():
                     file_path.unlink()  # Remove empty file
                 return False
@@ -468,7 +453,7 @@ class GoogleDriveDownloader:
             self.logger.warning("No audio files found in configured Google Drive folders")
             return 0, 0
         
-        # Download each file
+        # Download each file in chronological order (files are already ordered by Google Drive API)
         successful_downloads = 0
         total_files = len(audio_files)
         
@@ -476,9 +461,9 @@ class GoogleDriveDownloader:
             file_id = file['id']
             file_name = file['name']
             
-            self.logger.info(f"Downloading file {i}/{total_files}: {file_name}")
+            self.logger.info(f"Downloading file {i}/{total_files} (chronological order): {file_name}")
             
-            if self.download_file(file_id, file_name):
+            if self.download_file(file_id, file_name, sequence_number=i):
                 successful_downloads += 1
             else:
                 self.logger.error(f"Failed to download: {file_name}")
